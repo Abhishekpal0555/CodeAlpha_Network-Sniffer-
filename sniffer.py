@@ -1,22 +1,48 @@
-from scapy.all import sniff, IP, TCP, UDP
+from scapy.all import *
+from scapy.layers.http import HTTPRequest
+from datetime import datetime
 
-# Function to process each captured packet
-def packet_callback(packet):
-    # Check if the packet has an IP layer
-    if IP in packet:
-        ip_layer = packet[IP]
-        print(f"Source IP: {ip_layer.src}, Destination IP: {ip_layer.dst}")
+# Color formatting
+class bcolors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
-        # Check if the packet has a TCP layer
-        if TCP in packet:
-            tcp_layer = packet[TCP]
-            print(f"Protocol: TCP, Source Port: {tcp_layer.sport}, Destination Port: {tcp_layer.dport}")
+def packet_handler(packet):
+    """Process each packet with colored output"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    
+    # Ethernet Layer
+    if packet.haslayer(Ether):
+        print(f"\n{bcolors.BLUE}[{timestamp}] MAC: {packet[Ether].src} → {packet[Ether].dst}{bcolors.END}")
+    
+    # IP Layer
+    if packet.haslayer(IP):
+        print(f"{bcolors.GREEN}[{timestamp}] IP: {packet[IP].src} → {packet[IP].dst}{bcolors.END}")
+        
+        # TCP Layer
+        if packet.haslayer(TCP):
+            print(f"{bcolors.YELLOW}[{timestamp}] TCP: Port {packet[TCP].sport} → {packet[TCP].dport}{bcolors.END}")
+            
+            # HTTP Layer
+            if packet[TCP].dport == 80 and packet.haslayer(HTTPRequest):
+                http = packet[HTTPRequest]
+                print(f"{bcolors.RED}[{timestamp}] HTTP: {http.Host.decode()}{http.Path.decode()}{bcolors.END}")
 
-        # Check if the packet has a UDP layer
-        elif UDP in packet:
-            udp_layer = packet[UDP]
-            print(f"Protocol: UDP, Source Port: {udp_layer.sport}, Destination Port: {udp_layer.dport}")
-
-# Start sniffing packets
-print("Starting the network sniffer...")
-sniff(prn=packet_callback, count=10)  # Change count to capture more packets
+# Main execution
+if __name__ == "__main__":
+    print(f"{bcolors.HEADER}=== Network Sniffer (20 packets) ==={bcolors.END}")
+    print(f"{bcolors.CYAN}Press Ctrl+C to stop early{bcolors.END}\n")
+    
+    try:
+        sniff(prn=packet_handler, count=20, store=0)
+    except KeyboardInterrupt:
+        print(f"\n{bcolors.RED}Sniffer stopped by user{bcolors.END}")
+    finally:
+        print(f"{bcolors.UNDERLINE}Capture completed{bcolors.END}")
